@@ -1,0 +1,63 @@
+name: Native image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - Dockerfile
+      - compose.yaml
+      - scripts/smoke-application.sh
+      - server/pom.xml
+      - server/src/main/resources/META-INF/native-image/**
+      - .github/workflows/native-image.yml
+  pull_request:
+    paths:
+      - Dockerfile
+      - compose.yaml
+      - scripts/smoke-application.sh
+      - server/pom.xml
+      - server/src/main/resources/META-INF/native-image/**
+      - .github/workflows/native-image.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_DOCKER_TARGET: native-runtime
+
+jobs:
+  native-image:
+    name: Build and smoke native image
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Build native image
+        run: docker compose build app
+      - name: Start application
+        run: docker compose up --detach --no-build
+      - name: Exercise assembled application
+        run: ./scripts/smoke-application.sh http://127.0.0.1:8080
+      - name: Collect container logs
+        if: failure()
+        run: |
+          mkdir -p artifacts
+          docker compose logs --no-color > artifacts/native.log
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-image-failure
+          if-no-files-found: warn
+          retention-days: 7
+          path: artifacts
+      - name: Stop application
+        if: always()
+        run: docker compose down --volumes --remove-orphans

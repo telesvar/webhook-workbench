@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: web/package.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm --dir web install --frozen-lockfile
+      - name: Check formatting
+        run: pnpm --dir web format:check
+      - name: Lint and type-check
+        run: pnpm --dir web lint
+      - name: Run unit tests
+        run: pnpm --dir web test
+      - name: Build production assets
+        run: pnpm --dir web build
+
+  server:
+    name: Server
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+          cache-dependency-path: server/pom.xml
+      - name: Run server verification
+        run: ./server/mvnw -f server/pom.xml --batch-mode verify
+
+  container-smoke:
+    name: JVM container and browser smoke
+    needs: [web, server]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: web/package.json
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: web/package.json
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install web and browser dependencies
+        run: |
+          pnpm --dir web install --frozen-lockfile
+          pnpm --dir web exec playwright install --with-deps chromium
+      - name: Build JVM image
+        run: docker compose build app
+      - name: Start application
+        run: docker compose up --detach --no-build
+      - name: Exercise assembled application
+        run: ./scripts/smoke-application.sh http://127.0.0.1:8080
+      - name: Run Playwright journey
+        env:
+          BASE_URL: http://127.0.0.1:8080
+        run: pnpm --dir web test:e2e
+      - name: Collect container logs
+        if: failure()
+        run: |
+          mkdir -p artifacts/jvm-smoke
+          docker compose logs --no-color > artifacts/jvm-smoke/compose.log
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: jvm-smoke-failure
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            artifacts/jvm-smoke
+            web/playwright-report
+            web/test-results
+      - name: Stop application
+        if: always()
+        run: docker compose down --volumes --remove-orphans

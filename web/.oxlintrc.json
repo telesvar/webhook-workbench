@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "unicorn", "vitest"],
+  "categories": { "correctness": "error", "suspicious": "error" },
+
+  // Together these replace a separate `tsc --noEmit` step, which is why nothing else runs one.
+  "options": { "typeAware": true, "typeCheck": true },
+
+  "env": { "browser": true, "es2026": true },
+
+  "rules": {
+    // reportAllBailouts flags every place the compiler declined to memoise, not just errors.
+    "react/react-compiler": ["error", { "reportAllBailouts": true }],
+
+    // The automatic JSX runtime needs no React in scope, and oxlint has no setting for it.
+    "react/react-in-jsx-scope": "off"
+  },
+
+  "overrides": [
+    {
+      // Unsatisfiable without a runtime validator. See the comment on `requestJson`.
+      "files": ["src/api/problem.ts"],
+      "rules": { "typescript/no-unsafe-type-assertion": "off" }
+    }
+  ],
+
+  "ignorePatterns": ["dist", "playwright-report", "test-results", "pnpm-*.yaml"]
+}

@@ -1,0 +1,21 @@
+# Allowlist. Anything a build stage needs must be added here explicitly.
+*
+
+!server/pom.xml
+!server/.mvn
+!server/mvnw
+!server/src/main
+
+!web/package.json
+!web/pnpm-lock.yaml
+!web/pnpm-workspace.yaml
+!web/src
+!web/public
+!web/index.html
+!web/vite.config.ts
+!web/tsconfig.json
+
+**/.DS_Store
+**/node_modules
+**/target
+**/dist

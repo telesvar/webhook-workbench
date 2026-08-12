@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: webhook-workbench
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://127.0.0.1:3306/webhook_workbench?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&preserveInstants=true}
+    username: ${SPRING_DATASOURCE_USERNAME:workbench}
+    password: ${SPRING_DATASOURCE_PASSWORD:workbench}
+  jackson:
+    deserialization:
+      fail-on-trailing-tokens: true
+  mvc:
+    problemdetails:
+      enabled: true
+  servlet:
+    multipart:
+      # Disabled so Spring does not parse multipart or apply its own size limit
+      # before capture sees the request.
+      enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+server:
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+
+workbench:
+  # Empty means no auth. Set a token before exposing the instance, since captures hold real credentials.
+  access-token: ${WORKBENCH_ACCESS_TOKEN:}
+  capture:
+    # Bodies are buffered in memory, so this caps how much one request may hold.
+    max-body-size: ${WORKBENCH_MAX_BODY_SIZE:8MB}
+  query:
+    # Max items per list response. Separate from retention so a low retention cap
+    # does not reject a normal page request.
+    max-page-size: ${WORKBENCH_MAX_PAGE_SIZE:500}
+  retention:
+    max-events-per-inbox: ${WORKBENCH_RETENTION_MAX_EVENTS_PER_INBOX:500}
+  stream:
+    heartbeat-interval: ${WORKBENCH_STREAM_HEARTBEAT_INTERVAL:15s}
